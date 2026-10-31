@@ -177,6 +177,24 @@ Linux/macOS development requirements:
 - Python 3.11+
 - Docker (running)
 
+### Optional container development environment (Podman)
+
+The dev container is optional and works with rootless Podman or Docker. It pins
+the Rust toolchain, Z3, and the other system build dependencies that CI uses in
+one image. See [`.devcontainer/README.md`](.devcontainer/README.md) for setup
+with the `devcontainer` CLI or VS Code.
+
+`mise install` plus a Z3 development library is enough to build the workspace
+without a container. On image-based hosts such as Fedora Silverblue, Kinoite,
+Bluefin, or Bazzite, Homebrew provides Z3 without layering packages onto the
+base image, and `--features vendored-z3` builds Z3 from source. Use the container
+when you want CI's pinned versions in one place, or when you would rather not
+install either on the host.
+
+Compiling the workspace does not need a container engine. Docker, or rootless
+Podman as an alternative, is required only for runtime and E2E work such as
+`mise run gateway`, driver tasks, and the E2E suites.
+
 ### Nix setup
 
 The `nix develop` shell and `nix run .#…` apps, such as tmachine and the test

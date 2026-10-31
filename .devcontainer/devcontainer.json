@@ -1,0 +1,64 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+//
+// OpenShell dev container. Works with rootless Podman and Docker.
+// See .devcontainer/README.md for usage and the rationale behind each setting.
+{
+  "name": "OpenShell",
+  "build": {
+    "dockerfile": "Containerfile",
+    "context": ".."
+  },
+
+  // Rootless Podman: disable SELinux relabeling of the bind-mounted repo and
+  // map the host user to the container user so files stay owned by you.
+  "runArgs": ["--security-opt", "label=disable", "--userns=keep-id"],
+  "containerUser": "vscode",
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "workspaceFolder": "/workspace",
+
+  // Named volumes keep caches across rebuilds and keep build output off the
+  // host bind mount. The Cargo caches are shared by every checkout; target/
+  // is per checkout.
+  "mounts": [
+    "source=openshell-cargo-registry,target=/usr/local/cargo/registry,type=volume",
+    "source=openshell-cargo-git,target=/usr/local/cargo/git,type=volume",
+    "source=openshell-sccache,target=/home/vscode/.cache/sccache,type=volume",
+    "source=openshell-mise-data,target=/home/vscode/.local/share/mise,type=volume",
+    "source=openshell-target-${devcontainerId},target=/workspace/target,type=volume"
+  ],
+
+  // mise.toml sets RUSTC_WRAPPER=sccache itself; do not duplicate it here.
+  // mise preserves a caller-provided SCCACHE_DIR, so point it at the volume.
+  "remoteEnv": {
+    "PATH": "${containerWorkspaceFolder}/scripts/bin:${containerEnv:PATH}",
+    "SCCACHE_DIR": "/home/vscode/.cache/sccache"
+  },
+
+  // Fresh named volumes can be owned by a stale UID after updateRemoteUserUID,
+  // so reclaim the mount roots, then install only the tools a Rust
+  // contributor needs. sccache is required because mise.toml sets
+  // RUSTC_WRAPPER=sccache; uv is used by rust:lockfiles:check. Run
+  // `mise install --locked` for the full CI tool list.
+  "postCreateCommand": "sudo chown vscode:rustlang /usr/local/cargo/registry /usr/local/cargo/git && sudo chown vscode:vscode /workspace/target /home/vscode/.cache/sccache /home/vscode/.local/share/mise && mise trust && mise install --locked rust python node uv github:mozilla/sccache",
+
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "64gb"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["rust-lang.rust-analyzer"],
+      "settings": {
+        // A separate target dir stops rust-analyzer from blocking cargo builds
+        // on the shared target/ lock.
+        "rust-analyzer.cargo.targetDir": true
+      }
+    }
+  }
+}
